@@ -219,6 +219,7 @@ class Service {
             .catch(err => null);
 
         if (!total_items) {
+            this.config.last_checked = "00:00";
             return
         }
 
