@@ -255,7 +255,7 @@ class Service {
 
     async addItemsToPlaylist(uris) {
         // Add items
-        console.log("=> Adding items to playlist...");
+        console.log(`=> Adding ${uris.length} items to playlist...`);
         let response = await fetch(`https://api.spotify.com/v1/playlists/${this.config.playlist_id}/tracks`, {
             method: "POST",
             headers: {
