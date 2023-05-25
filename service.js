@@ -16,10 +16,11 @@ class Service {
     }
 
     async init() {
-        this.refreshToken();
+        await this.refreshToken();
     }
 
     async run() {
+        console.log("Running...");
         // Check playlist
         await this.checkPlaylist();
         await this.getLastChecked();
@@ -28,14 +29,14 @@ class Service {
 
         if (!songs.length) {
             console.log("=> Up to date.");
-            exit();
+            return
         }
 
         let uris = await this.getSongUris(songs);
 
         // Add items to playlist
         await this.addItemsToPlaylist(uris);
-        exit();
+        return
     }
 
     async auth() {
@@ -70,6 +71,11 @@ class Service {
             .then(res => res.json())
             .catch(err => null);
 
+        if (!response) {
+            console.log("Authorization failed!");
+            exit();
+        }
+
         // Save response to credentials
         this.config.access_token = response.access_token;
         this.config.refresh_token = response.refresh_token;
@@ -95,6 +101,11 @@ class Service {
             .then(res => res.json())
             .catch(err => null);
 
+        if (!response) {
+            console.log("Refresh failed!");
+            exit();
+        }
+
         // Save response to credentials
         this.config.access_token = response.access_token;
 
@@ -102,7 +113,6 @@ class Service {
         await this.getUserID();
 
         this.ready = true;
-        this.run();
     }
 
     async getUserID() {
@@ -157,8 +167,7 @@ class Service {
             }
         })
             .then(res => res.json())
-            .then(res => res.items)
-            .catch(err => null);
+            .then(res => res.items);
 
         // Construct date string
         let dt = new Date();
