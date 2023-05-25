@@ -191,7 +191,7 @@ class Service {
         // Construct date string
         let dt = new Date();
         let date = dt.getFullYear() + "-" + (dt.getMonth() + 1).toString().padStart(2, "0") + "-" + dt.getDate().toString().padStart(2, "0");
-        let playlist_name = "Radyo Eksen " + date;
+        let playlist_name = date + " Radyo Eksen";
 
         // Check if playlist exists
         if (!response.filter(playlist => playlist.name === playlist_name).length) {

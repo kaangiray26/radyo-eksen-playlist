@@ -1,6 +1,9 @@
 # radyo-eksen-playlist
 Automated Spotify Playlist Generator for Radyo Eksen
 
+> Check out generated playlists here:
+[Profile](https://open.spotify.com/user/31v5bbakuh7445bhsw7cqknesad4/playlists)
+
 ## Setting things up
 Change your directory Install dependencies
 ```
