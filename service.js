@@ -6,38 +6,23 @@ class Service {
     constructor() {
         this.ready = false;
         this.user_id = null;
-        this.config = null;
+
+        // Read credentials
+        this.config = {
+            client_id: process.env.client_id,
+            client_secret: process.env.client_secret,
+            refresh_token: process.env.refresh_token
+        }
     }
 
     async init() {
-        // Check if 'config.json' exists
-        if (!fs.existsSync('config.json')) {
-            console.log("'config.json' does not exist.");
-            exit();
-        }
-
-        // Read credentials
-        this.config = JSON.parse(fs.readFileSync('config.json'));
-
-        // Check if authorization is required
-        if (!this.config.hasOwnProperty("access_token")) {
-            this.auth();
-            return
-        }
-
-        // Check if access token is expired
-        if (Date.now() > this.config.expires_in) {
-            this.refreshToken();
-            return
-        }
-
-        this.ready = true;
-        this.run();
+        this.refreshToken();
     }
 
     async run() {
         // Check playlist
         await this.checkPlaylist();
+        await this.getLastChecked();
 
         let songs = await this.getLast10Songs();
 
@@ -87,18 +72,11 @@ class Service {
 
         // Save response to credentials
         this.config.access_token = response.access_token;
-        this.config.token_type = response.token_type;
-        this.config.expires_in = Date.now() + parseInt(response.expires_in) * 1000;
         this.config.refresh_token = response.refresh_token;
 
-        // Get user ID
-        await this.getUserID();
-
-        // Save credentials to file
-        fs.writeFileSync('config.json', JSON.stringify(this.config, null, 4));
-
-        this.ready = true;
-        this.run();
+        // Save to file
+        fs.writeFileSync("credentials.json", JSON.stringify(this.config, null, 4));
+        exit();
     }
 
     async refreshToken() {
@@ -119,11 +97,9 @@ class Service {
 
         // Save response to credentials
         this.config.access_token = response.access_token;
-        this.config.token_type = response.token_type;
-        this.config.expires_in = Date.now() + parseInt(response.expires_in) * 1000;
 
-        // Save credentials to file
-        fs.writeFileSync('config.json', JSON.stringify(this.config, null, 4));
+        // Get user ID
+        await this.getUserID();
 
         this.ready = true;
         this.run();
@@ -155,10 +131,6 @@ class Service {
         // Get last checked
         console.log("=> Getting last 10 songs...");
 
-        if (!this.config.hasOwnProperty('last_checked')) {
-            this.config.last_checked = '00:00';
-        }
-
         let response = await fetch("https://radioeksen.com/umbraco/surface/Partial/_EksenLast10Songs")
             .then(res => res.text())
             .catch(err => null);
@@ -171,7 +143,7 @@ class Service {
         // Get song titles
         let dom = new JSDOM(response);
         let songs = [...dom.window.document.querySelectorAll(".music_line")]
-            .filter(song => song.querySelector('.plyr__time--duration').textContent >= this.config.last_checked)
+            .filter(song => song.querySelector('.plyr__time--duration').textContent > this.config.last_checked)
             .map(song => song.querySelector('.music-name').textContent)
             .reverse();
         return songs;
@@ -201,7 +173,6 @@ class Service {
 
         // Get playlist ID
         this.config.playlist_id = response.filter(playlist => playlist.name === playlist_name)[0].id;
-        fs.writeFileSync('config.json', JSON.stringify(this.config, null, 4));
     }
 
     async getPlaylistItems() {
@@ -224,6 +195,43 @@ class Service {
         // Construct song list
         let songs = response.map(item => item.track.name + " " + item.track.artists.map(artist => artist.name).join(" "));
         return songs;
+    }
+
+    async getLastChecked() {
+        let total_items = await fetch(`https://api.spotify.com/v1/playlists/${this.config.playlist_id}?` + new URLSearchParams({
+            fields: "tracks.total"
+        }), {
+            headers: {
+                "Authorization": "Bearer " + this.config.access_token,
+            }
+        })
+            .then(res => res.json())
+            .then(res => res.tracks.total)
+            .catch(err => null);
+
+        if (!total_items) {
+            return
+        }
+
+        let tracks = await fetch(`https://api.spotify.com/v1/playlists/${this.config.playlist_id}/tracks?` + new URLSearchParams({
+            fields: "items(added_at)",
+            limit: 1,
+            offset: total_items - 1
+        }), {
+            headers: {
+                "Authorization": "Bearer " + this.config.access_token,
+            }
+        })
+            .then(res => res.json())
+            .then(res => res.items[0])
+            .catch(err => null);
+
+        if (!tracks) {
+            this.config.last_checked = "00:00";
+            return
+        }
+
+        this.config.last_checked = new Date(tracks.added_at).toLocaleTimeString('tr-TR', { timeZone: 'Turkey', hour: "2-digit", minute: "2-digit" });
     }
 
     async createPlaylist(playlist_name) {
@@ -250,7 +258,6 @@ class Service {
 
         // Save credentials to file
         this.config.playlist_id = response.id;
-        fs.writeFileSync('config.json', JSON.stringify(this.config, null, 4));
     }
 
     async addItemsToPlaylist(uris) {
@@ -275,8 +282,6 @@ class Service {
         }
 
         // Save last_checked
-        this.config.last_checked = new Date().toLocaleTimeString('tr-TR', { timeZone: 'Turkey', hour: "2-digit", minute: "2-digit" });
-        fs.writeFileSync('config.json', JSON.stringify(this.config, null, 4));
         console.log("=> Done.");
     }
 
