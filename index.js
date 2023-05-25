@@ -16,7 +16,6 @@ app.get("/auth", (req, res) => {
     })
 })
 
-app.listen(3000, '0.0.0.0', () => {
-    console.log("Server running on:", "\x1b[32mhttp://localhost:3000/\x1b[0m");
+app.listen(process.env.PORT, '0.0.0.0', () => {
     service.init();
 })
