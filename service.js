@@ -6,6 +6,7 @@ class Service {
     constructor() {
         this.ready = false;
         this.user_id = null;
+        this.latest_playlist_tracks = [];
 
         // Read credentials
         this.config = {
@@ -160,6 +161,11 @@ class Service {
     }
 
     async checkPlaylist() {
+        // Construct date string
+        let dt = new Date();
+        let date = dt.getFullYear() + "-" + (dt.getMonth() + 1).toString().padStart(2, "0") + "-" + dt.getDate().toString().padStart(2, "0");
+        let playlist_name = date + " Radyo Eksen";
+
         console.log("=> Checking playlist...");
         let response = await fetch("https://api.spotify.com/v1/me/playlists", {
             headers: {
@@ -169,11 +175,6 @@ class Service {
             .then(res => res.json())
             .then(res => res.items);
 
-        // Construct date string
-        let dt = new Date();
-        let date = dt.getFullYear() + "-" + (dt.getMonth() + 1).toString().padStart(2, "0") + "-" + dt.getDate().toString().padStart(2, "0");
-        let playlist_name = date + " Radyo Eksen";
-
         // Check if playlist exists
         if (!response.filter(playlist => playlist.name === playlist_name).length) {
             await this.createPlaylist(playlist_name);
@@ -182,11 +183,16 @@ class Service {
 
         // Get playlist ID
         this.config.playlist_id = response.filter(playlist => playlist.name === playlist_name)[0].id;
+
+        // Get latest tracks
+        let total_tracks = response.filter(playlist => playlist.id === this.config.playlist_id)[0].tracks.total;
+        this.latest_playlist_tracks = await this.getPlaylistItems(total_tracks);
     }
 
-    async getPlaylistItems() {
+    async getPlaylistItems(total_tracks) {
         let response = await fetch(`https://api.spotify.com/v1/playlists/${this.config.playlist_id}/tracks?` + new URLSearchParams({
-            fields: "items(track(name,artists(name)))",
+            fields: "items(track(uri))",
+            offset: total_tracks > 20 ? total_tracks - 20 : 0,
         }), {
             headers: {
                 "Authorization": "Bearer " + this.config.access_token,
@@ -201,9 +207,9 @@ class Service {
             return
         }
 
-        // Construct song list
-        let songs = response.map(item => item.track.name + " " + item.track.artists.map(artist => artist.name).join(" "));
-        return songs;
+        // Construct track IDs
+        let tracks = response.map(track => track.track.uri);
+        return tracks;
     }
 
     async getLastChecked() {
@@ -314,6 +320,10 @@ class Service {
             return null
         }
 
+        if (this.latest_playlist_tracks.includes(response.uri)) {
+            return null
+        }
+
         return response.uri;
     }
 
@@ -321,7 +331,9 @@ class Service {
         let uris = [];
         console.log("=> Searching for items...");
         for (let song of songs) {
-            uris.push(await this.search(song));
+            let uri = await this.search(song);
+            if (!uri) continue;
+            uris.push(uri);
         }
         return uris;
     }
